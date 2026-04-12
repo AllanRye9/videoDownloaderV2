@@ -48,7 +48,9 @@ class ApiService extends ChangeNotifier {
           try {
             final pctStr = line.split('%')[0].split(' ').last;
             _activeJobs[id]!.percent = double.parse(pctStr);
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('Could not parse progress percentage from: "$line" ($e)');
+          }
         }
         _activeJobs[id]!.status = 'downloading';
         notifyListeners();

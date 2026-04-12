@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'package:filesize/filesize.dart';
 import '../services/api_service.dart';
 import '../models/download_model.dart';
 
@@ -78,15 +79,6 @@ class _FileCard extends StatelessWidget {
 
   const _FileCard({required this.file, required this.api});
 
-  String _humanSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
-
   Future<void> _open(BuildContext context) async {
     final url = Uri.parse(api.fileUrl(file.name));
     if (await canLaunchUrl(url)) {
@@ -103,7 +95,7 @@ class _FileCard extends StatelessWidget {
     final modifiedDate = DateTime.fromMillisecondsSinceEpoch(
       (file.modified * 1000).toInt(),
     );
-    final dateStr = DateFormat('dd MMM yyyy – HH:mm').format(modifiedDate);
+    final dateStr = DateFormat('dd MMM yyyy - HH:mm').format(modifiedDate);
 
     final isVideo = file.name.endsWith('.mp4') ||
         file.name.endsWith('.mkv') ||
@@ -133,7 +125,7 @@ class _FileCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
-        subtitle: Text('${_humanSize(file.sizeBytes)} · $dateStr',
+        subtitle: Text('${filesize(file.sizeBytes)} · $dateStr',
             style: const TextStyle(fontSize: 11)),
         trailing: IconButton(
           icon: const Icon(Icons.open_in_new, color: Colors.deepPurple),
