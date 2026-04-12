@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Downloader</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Compact stats badge */
+        .stats-badge {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1000;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .stats-badge:hover {
+            transform: scale(1.05);
+        }
+        .stats-badge small {
+            font-size: 0.7rem;
+            opacity: 0.9;
+        }
+
+        /* Toast notification */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .toast {
+            background: white;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+            padding: 12px 20px;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideInRight 0.3s ease-out;
+            max-width: 300px;
+        }
+        .toast i {
+            color: #667eea;
+            font-size: 1.2rem;
+        }
+        .toast.success {
+            border-left-color: #10b981;
+        }
+        .toast.success i {
+            color: #10b981;
+        }
+        .toast.error {
+            border-left-color: #ef4444;
+        }
+        .toast.error i {
+            color: #ef4444;
+        }
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        /* Main content adjustment for fixed badge */
+        .main-content {
+            margin-left: 0;
+            padding-top: 20px;
+        }
+
+        /* Card Styles (unchanged) */
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            animation: slideUp 0.6s ease-out;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ecf0f1;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #3498db;
+            background: #f8f9fa;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #ecf0f1;
+            color: #2c3e50;
+        }
+
+        .btn-secondary:hover {
+            background: #d5dbdb;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        /* File List (unchanged) */
+        .file-list {
+            list-style: none;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border: 1px solid #ecf0f1;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        .file-item:hover {
+            background: #f8f9fa;
+            border-color: #3498db;
+            transform: translateX(4px);
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #2c3e50;
+            word-break: break-all;
+        }
+
+        .file-meta {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: 12px;
+        }
+
+        .btn-download {
+            padding: 8px 12px;
+            background: #3498db;
+            color: white;
+            font-size: 0.85rem;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+
+        .btn-download:hover {
+            background: #2980b9;
+        }
+
+        /* Ad Placeholder */
+        .ad-placeholder {
+            background: #ecf0f1;
+            border: 2px dashed #95a5a6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            color: #7f8c8d;
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+
+        .tip-box {
+            background: #d6eaf8;
+            border-left: 4px solid #3498db;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #1a5276;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #7f8c8d;
+            padding: 40px 20px;
+        }
+
+        .empty-state i {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Compact stats badge -->
+    <div class="stats-badge" id="stats-badge" title="Total videos / Total size">
+        <span id="badge-count">0</span>
+        <small id="badge-size">0 MB</small>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="container">
+        <!-- Header (simplified) -->
+        <header style="text-align: center; margin-bottom: 20px;">
+            <h1><i class="fas fa-download"></i> Video Downloader</h1>
+            <p class="subtitle">Fast and easy video downloading</p>
+        </header>
+
+        <!-- Main Grid -->
+        <div class="main-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+            <!-- Download Form Card -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-link"></i> Download Video
+                </div>
+                <div class="card-body">
+                    <form id="download-form">
+                        <div class="form-group">
+                            <label for="url"><i class="fas fa-globe"></i> Video URL *</label>
+                            <input type="url" id="url" required placeholder="https://www.youtube.com/watch?v=...">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="format"><i class="fas fa-cog"></i> Format</label>
+                                <input type="text" id="format" value="best" placeholder="best, bestvideo+bestaudio">
+                            </div>
+                            <div class="form-group">
+                                <label for="cookies"><i class="fas fa-key"></i> Cookies</label>
+                                <input type="text" id="cookies" placeholder="path/to/cookies.txt">
+                            </div>
+                        </div>
+
+                        <button type="submit" id="download-btn" class="btn-primary">
+                            <i class="fas fa-cloud-download-alt"></i> Start Download
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Ad & Tips Sidebar -->
+            <div>
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-star"></i> Featured
+                    </div>
+                    <div class="card-body">
+                        <div class="ad-placeholder">
+                            <div>
+                                <div style="font-size: 2rem; margin-bottom: 10px;">📢</div>
+                                <p style="font-weight: 600; margin-bottom: 8px;">Advertisement Space</p>
+                                <p style="font-size: 0.9rem;">Your ad here (970×90)</p>
+                            </div>
+                        </div>
+                        <div class="tip-box">
+                            <strong>💡 Tip:</strong> Use format "best" for best quality or "mp3" for audio only
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Files Section -->
+        <div class="card">
+            <div class="card-header" style="justify-content: space-between;">
+                <div>
+                    <i class="fas fa-list"></i> Downloaded Videos
+                </div>
+                <button class="btn-secondary btn-small" onclick="loadFiles(true)">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <ul class="file-list" id="file-list">
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>Loading files...</p>
+                    </div>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Bottom Ad -->
+        <div style="margin-top: 30px; text-align: center;">
+            <div class="ad-placeholder" style="min-height: 90px;">
+                Advertisement (970×90)
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------- Sound Generator using Web Audio API ----------
+        function beep(frequency, duration, volume = 0.2) {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                // Resume if suspended (due to autoplay policy)
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => play());
+                } else {
+                    play();
+                }
+
+                function play() {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.frequency.value = frequency;
+                    oscillator.type = 'sine';
+                    gainNode.gain.value = volume;
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + duration / 1000);
+                }
+            } catch (e) {
+                console.log('Web Audio API not supported or blocked');
+            }
+        }
+
+        // ----------------------------------------------------------
+
+        const socket = io();
+        let currentDownloadId = null;
+        let downloadCount = parseInt(localStorage.getItem('downloadCount')) || 0;
+        let downloadedToday = parseInt(localStorage.getItem('downloadedToday')) || 0;
+        let lastDownloadDate = localStorage.getItem('lastDownloadDate') || new Date().toDateString();
+
+        if (lastDownloadDate !== new Date().toDateString()) {
+            downloadedToday = 0;
+            localStorage.setItem('lastDownloadDate', new Date().toDateString());
+        }
+
+        // Update badge on load
+        updateStatsBadge();
+
+        // Socket event listeners
+        socket.on('completed', (data) => {
+            if (data.id === currentDownloadId) {
+                downloadCount++;
+                downloadedToday++;
+                localStorage.setItem('downloadCount', downloadCount);
+                localStorage.setItem('downloadedToday', downloadedToday);
+                updateStatsBadge();
+                showToast('✅ Download completed!', 'success');
+                beep(880, 300, 0.2); // Higher pitch for success
+            }
+        });
+
+        socket.on('failed', (data) => {
+            if (data.id === currentDownloadId) {
+                showToast('❌ Download failed', 'error');
+                beep(220, 400, 0.2); // Low buzz for failure
+            }
+        });
+
+        socket.on('files_updated', () => {
+            console.log('Files updated – reloading list');
+            loadFiles(true);
+            updateStatsBadge();
+            // Optionally play a sound for new files added by others?
+            // We'll rely on completed event for our own downloads
+        });
+
+        socket.on('connect', () => {
+            console.log('Socket reconnected – refreshing files');
+            loadFiles(false);
+            updateStatsBadge();
+        });
+
+        // Handle download form
+        document.getElementById('download-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const url = document.getElementById('url').value;
+            const format = document.getElementById('format').value;
+            const cookies = document.getElementById('cookies').value;
+
+            const btn = document.getElementById('download-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Starting...';
+
+            try {
+                const formData = new FormData();
+                formData.append('url', url);
+                formData.append('format', format);
+                formData.append('cookies', cookies);
+
+                const response = await fetch('/start_download', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                currentDownloadId = data.download_id;
+                socket.emit('subscribe', { download_id: currentDownloadId });
+
+                showToast('Download started in background', 'info');
+                beep(440, 200, 0.2); // Short beep for start
+
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Start Download';
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Start Download';
+            }
+        });
+
+        // Update the compact stats badge
+        async function updateStatsBadge() {
+            document.getElementById('badge-count').textContent = downloadCount;
+
+            try {
+                const response = await fetch(`/files?t=${Date.now()}`);
+                const files = await response.json();
+                let totalSize = 0;
+                files.forEach(f => totalSize += f.size);
+                const sizeInMB = (totalSize / 1024 / 1024).toFixed(2);
+                document.getElementById('badge-size').textContent = sizeInMB + ' MB';
+            } catch (e) {
+                console.log('Stats error:', e);
+            }
+        }
+
+        // Load file list
+        async function loadFiles(animate = false) {
+            const fileList = document.getElementById('file-list');
+
+            try {
+                const response = await fetch(`/files?t=${Date.now()}`);
+                const files = await response.json();
+
+                if (files.length === 0) {
+                    fileList.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No files downloaded yet</p></div>';
+                } else {
+                    fileList.innerHTML = '';
+                    files.forEach((file, index) => {
+                        const li = document.createElement('li');
+                        li.className = 'file-item';
+                        if (animate) {
+                            li.style.animationDelay = (index * 0.05) + 's';
+                        }
+
+                        const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+                        const date = new Date(file.modified * 1000).toLocaleDateString();
+
+                        li.innerHTML = `
+                            <div class="file-info">
+                                <div class="file-name"><i class="fas fa-video" style="color: #667eea; margin-right: 8px;"></i>${file.name}</div>
+                                <div class="file-meta">${sizeMB} MB • ${date}</div>
+                            </div>
+                            <div class="file-actions">
+                                <a href="/downloads/${file.name}" target="_blank" class="btn-download" style="text-decoration: none;">
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                            </div>
+                        `;
+                        fileList.appendChild(li);
+                    });
+                }
+            } catch (err) {
+                fileList.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Error loading files</p></div>';
+            }
+        }
+
+        // Toast notification
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.3s ease-out forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Initial load
+        loadFiles(true);
+    </script>
+</body>
+</html>
