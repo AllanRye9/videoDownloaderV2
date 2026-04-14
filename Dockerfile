@@ -1,36 +1,39 @@
-# ── Stage 1: build dependencies ───────────────────────────────────────────────
-FROM python:3.11-slim AS base
+FROM python:3.11-slim
 
-# System packages needed by yt-dlp and ffmpeg
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg \
-        curl \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
+# Set working directory
 WORKDIR /app
 
-# Install Python dependencies first (layer-cached)
+# Copy requirements first for better caching
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ── Stage 2: runtime image ────────────────────────────────────────────────────
-FROM base AS runtime
+# Copy application files
+COPY app.py .
+COPY templates templates/
 
-WORKDIR /app
-
-# Copy application source
-COPY video.py .
-COPY templates/ templates/
-
-# Create the downloads folder (volume can be mounted here)
+# Create downloads directory
 RUN mkdir -p downloads
 
-# Expose the Flask / Socket.IO port
+# Set environment variables
+ENV PORT=5000
+ENV DEBUG=false
+ENV AUTO_DELETE_ENABLED=false
+ENV DOWNLOAD_FOLDER=downloads
+
+# Expose port
 EXPOSE 5000
 
-# Use eventlet worker for proper async Socket.IO support
-CMD ["python", "-m", "gunicorn", \
-     "--worker-class", "eventlet", \
-     "-w", "1", \
-     "--bind", "0.0.0.0:5000", \
-     "video:app"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:5000/health')"
+
+# Run the application
+CMD ["gunicorn", "-k", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "--timeout", "300", "app:app"]
