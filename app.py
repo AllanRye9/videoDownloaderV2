@@ -485,8 +485,8 @@ def delete_download(download_id):
         if file_path and os.path.exists(file_path):
             try:
                 os.remove(file_path)
-            except Exception as e:
-                return jsonify({'error': f'Failed to delete file: {str(e)}'}), 500
+            except Exception:
+                return jsonify({'error': 'Failed to delete file'}), 500
         
         del downloads[download_id]
     
