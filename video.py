@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 import json
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
@@ -46,6 +47,31 @@ sio = socketio.AsyncServer(
     ping_interval=25,
 )
 
+
+# =========================
+# Application lifespan
+# =========================
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    global _main_loop
+    _main_loop = asyncio.get_event_loop()
+
+    cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
+    cleanup_thread.start()
+
+    print("=" * 50)
+    print("Video Downloader Server Starting (FastAPI)")
+    print("=" * 50)
+    print(f"Download folder: {DOWNLOAD_FOLDER}")
+    print(f"Auto-delete: {AUTO_DELETE_ENABLED}")
+    if AUTO_DELETE_ENABLED:
+        print(f"Auto-delete after: {AUTO_DELETE_SECONDS} seconds")
+    print("Docs available at: /docs")
+    print("=" * 50)
+
+    yield  # application runs here
+
+
 # =========================
 # FastAPI app
 # =========================
@@ -54,6 +80,7 @@ fastapi_app = FastAPI(
     description="Download videos from YouTube and other platforms. "
                 "Use /docs for interactive API documentation.",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
 fastapi_app.add_middleware(
@@ -68,29 +95,6 @@ templates = Jinja2Templates(directory="templates")
 
 # Mount Socket.IO alongside FastAPI
 app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)
-
-
-# =========================
-# Startup / shutdown
-# =========================
-@fastapi_app.on_event("startup")
-async def startup_event():
-    global _main_loop
-    _main_loop = asyncio.get_event_loop()
-
-    # Start cleanup thread
-    t = threading.Thread(target=cleanup_worker, daemon=True)
-    t.start()
-
-    print("=" * 50)
-    print("Video Downloader Server Starting (FastAPI)")
-    print("=" * 50)
-    print(f"Download folder: {DOWNLOAD_FOLDER}")
-    print(f"Auto-delete: {AUTO_DELETE_ENABLED}")
-    if AUTO_DELETE_ENABLED:
-        print(f"Auto-delete after: {AUTO_DELETE_SECONDS} seconds")
-    print("Docs available at: /docs")
-    print("=" * 50)
 
 
 # =========================
@@ -601,7 +605,7 @@ async def subscribe(sid, data):
 # =========================
 if __name__ == '__main__':
     uvicorn.run(
-        "app:app",
+        "video:app",
         host="0.0.0.0",
         port=int(os.environ.get('PORT', 5000)),
         reload=os.environ.get('DEBUG', 'false').lower() == 'true',
