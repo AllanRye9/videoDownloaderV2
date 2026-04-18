@@ -130,25 +130,59 @@ class StartDownloadRequest(BaseModel):
 # =========================
 # Helpers
 # =========================
+
+# Player clients tried in order – tv_embedded bypasses most bot checks without cookies.
+_YT_PLAYER_CLIENTS = [
+    'tv_embedded',
+    'ios',
+    'android',
+    'web_embedded',
+    'web',
+]
+
+
+def _build_yt_dlp_base_args(player_client: str) -> list:
+    """Return common yt-dlp flags for a given YouTube player client."""
+    return [
+        '--extractor-args', f'youtube:player_client={player_client}',
+        '--user-agent',
+        'Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version',
+        '--add-header', 'Accept-Language:en-US,en;q=0.9',
+        '--sleep-requests', '1',
+        '--no-warnings',
+    ]
+
+
 def get_video_info(url: str) -> Optional[dict]:
-    """Get comprehensive video information via yt-dlp."""
-    try:
-        result = subprocess.run(
-            [
-                'yt-dlp',
-                '--dump-json',
-                '--no-playlist',
-                '--extractor-args', 'youtube:player_client=ios,web_embedded',
-                '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-                '--add-header', 'Accept-Language:en-US,en;q=0.9',
-                url,
-            ],
-            capture_output=True, text=True, check=True, timeout=60,
-        )
-        return json.loads(result.stdout)
-    except Exception as e:
-        print(f"Error getting video info: {e}")
-        return None
+    """Get comprehensive video information via yt-dlp.
+
+    Tries multiple YouTube player clients in sequence so that if one is
+    blocked by bot-detection the next one is attempted automatically.
+    """
+    last_error = ""
+    for client in _YT_PLAYER_CLIENTS:
+        try:
+            result = subprocess.run(
+                ['yt-dlp', '--dump-json', '--no-playlist']
+                + _build_yt_dlp_base_args(client)
+                + [url],
+                capture_output=True,
+                text=True,
+                timeout=90,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return json.loads(result.stdout.strip().splitlines()[-1])
+            last_error = (result.stderr or result.stdout or "").strip()
+            print(f"[yt-dlp info] client={client} rc={result.returncode}: {last_error[:200]}")
+        except subprocess.TimeoutExpired:
+            last_error = f"Timeout with client={client}"
+            print(f"[yt-dlp info] {last_error}")
+        except Exception as e:
+            last_error = str(e)
+            print(f"[yt-dlp info] Exception with client={client}: {last_error}")
+
+    print(f"Error getting video info after all clients: {last_error}")
+    return None
 
 
 def sanitize_filename(title: str) -> str:
@@ -161,113 +195,133 @@ def sanitize_filename(title: str) -> str:
 # =========================
 # Download worker (runs in a thread)
 # =========================
-def download_worker(download_id: str, url: str, output_path: str,
-                    format_spec: str, cookies_file: Optional[str] = None):
-    """Download worker – runs in a daemon thread, emits Socket.IO events."""
-    cmd = [
-        'yt-dlp',
-        '--no-playlist',
-        '--newline',
-        '--progress',
-        '--merge-output-format', 'mp4',
-        '--extractor-args', 'youtube:player_client=ios,web_embedded',
-        '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-        '--add-header', 'Accept-Language:en-US,en;q=0.9',
-        '--retries', '5',
-        '--fragment-retries', '5',
-        '--http-chunk-size', '10485760',
-        '-f', format_spec,
-        '-o', output_path,
-        url,
-    ]
+def _try_download(download_id: str, url: str, output_path: str,
+                  format_spec: str, cookies_file: Optional[str],
+                  player_client: str) -> subprocess.Popen:
+    """Build and launch a yt-dlp download process for a given player client."""
+    cmd = (
+        ['yt-dlp', '--no-playlist', '--newline', '--progress',
+         '--merge-output-format', 'mp4']
+        + _build_yt_dlp_base_args(player_client)
+        + ['--retries', '10',
+           '--fragment-retries', '10',
+           '--abort-on-unavailable-fragments',
+           '--no-abort-on-unavailable-fragments',
+           '--concurrent-fragments', '4',
+           '-f', format_spec,
+           '-o', output_path,
+           url]
+    )
     if cookies_file:
         cmd.extend(['--cookies', cookies_file])
+    return subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+
+def download_worker(download_id: str, url: str, output_path: str,
+                    format_spec: str, cookies_file: Optional[str] = None):
+    """Download worker – runs in a daemon thread, emits Socket.IO events.
+
+    Tries multiple YouTube player clients so transient bot-detection errors
+    are retried automatically with a different client.
+    """
 
     with download_lock:
         downloads[download_id]['status'] = 'downloading'
         downloads[download_id]['start_time'] = time.time()
 
-    try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
+    last_error = "Unknown error"
+    for client in _YT_PLAYER_CLIENTS:
+        try:
+            process = _try_download(download_id, url, output_path, format_spec,
+                                    cookies_file, client)
 
-        for line in iter(process.stdout.readline, ''):
-            line = line.strip()
-            if not line:
-                continue
+            output_lines: list = []
+            for line in iter(process.stdout.readline, ''):
+                line = line.strip()
+                if not line:
+                    continue
 
-            _emit('progress', {'id': download_id, 'line': line}, room=download_id)
+                output_lines.append(line)
+                _emit('progress', {'id': download_id, 'line': line}, room=download_id)
 
-            if '%' in line:
-                try:
-                    percent = float(line.split('%')[0].split()[-1])
+                if '%' in line:
+                    try:
+                        percent = float(line.split('%')[0].split()[-1])
+                        with download_lock:
+                            downloads[download_id]['percent'] = percent
+                    except Exception:
+                        pass
+
+                if 'ETA' in line:
+                    try:
+                        parts = line.split()
+                        for i, part in enumerate(parts):
+                            if 'iB/s' in part and i > 0:
+                                with download_lock:
+                                    downloads[download_id]['speed'] = parts[i - 1] + part
+                            if part == 'ETA' and i < len(parts) - 1:
+                                with download_lock:
+                                    downloads[download_id]['eta'] = parts[i + 1]
+                    except Exception:
+                        pass
+
+            process.wait()
+
+            if process.returncode == 0:
+                final_path = output_path.replace('%(ext)s', 'mp4')
+
+                if not os.path.exists(final_path):
+                    base_name = os.path.splitext(os.path.basename(output_path))[0]
+                    for f in os.listdir(DOWNLOAD_FOLDER):
+                        if f.startswith(base_name.replace('%(ext)s', '')):
+                            final_path = os.path.join(DOWNLOAD_FOLDER, f)
+                            break
+
+                if os.path.exists(final_path):
+                    file_size = os.path.getsize(final_path)
+
                     with download_lock:
-                        downloads[download_id]['percent'] = percent
-                except Exception:
-                    pass
+                        downloads[download_id].update({
+                            'status': 'completed',
+                            'end_time': time.time(),
+                            'file_path': final_path,
+                            'file_size': file_size,
+                            'percent': 100,
+                        })
 
-            if 'ETA' in line:
-                try:
-                    parts = line.split()
-                    for i, part in enumerate(parts):
-                        if 'iB/s' in part and i > 0:
-                            with download_lock:
-                                downloads[download_id]['speed'] = parts[i - 1] + part
-                        if part == 'ETA' and i < len(parts) - 1:
-                            with download_lock:
-                                downloads[download_id]['eta'] = parts[i + 1]
-                except Exception:
-                    pass
-
-        process.wait()
-
-        if process.returncode == 0:
-            final_path = output_path.replace('%(ext)s', 'mp4')
-
-            if not os.path.exists(final_path):
-                base_name = os.path.splitext(os.path.basename(output_path))[0]
-                for f in os.listdir(DOWNLOAD_FOLDER):
-                    if f.startswith(base_name.replace('%(ext)s', '')):
-                        final_path = os.path.join(DOWNLOAD_FOLDER, f)
-                        break
-
-            if os.path.exists(final_path):
-                file_size = os.path.getsize(final_path)
-
-                with download_lock:
-                    downloads[download_id].update({
-                        'status': 'completed',
-                        'end_time': time.time(),
-                        'file_path': final_path,
+                    _emit('completed', {
+                        'id': download_id,
                         'file_size': file_size,
-                        'percent': 100,
-                    })
+                        'download_url': f'/download/{download_id}',
+                        'stream_url': f'/stream/{download_id}',
+                    }, room=download_id)
 
-                _emit('completed', {
-                    'id': download_id,
-                    'file_size': file_size,
-                    'download_url': f'/download/{download_id}',
-                    'stream_url': f'/stream/{download_id}',
-                }, room=download_id)
-
-                _emit('files_updated', {})
+                    _emit('files_updated', {})
+                    return  # success – exit worker
+                else:
+                    last_error = "Downloaded file not found on disk"
+                    print(f"[download_worker] client={client} file missing after rc=0")
             else:
-                raise RuntimeError("Downloaded file not found")
-        else:
-            raise RuntimeError(f"Download failed with return code {process.returncode}")
+                last_error = '\n'.join(output_lines[-5:]) or f"rc={process.returncode}"
+                print(f"[download_worker] client={client} failed rc={process.returncode}: {last_error[:200]}")
 
-    except Exception as e:
-        print(f"Download error: {e}")
-        with download_lock:
-            downloads[download_id]['status'] = 'failed'
-            downloads[download_id]['error'] = str(e)
+        except Exception as e:
+            last_error = str(e)
+            print(f"[download_worker] client={client} exception: {last_error}")
 
-        _emit('failed', {'id': download_id, 'error': str(e)}, room=download_id)
+    # All clients exhausted
+    print(f"Download failed after all clients: {last_error}")
+    with download_lock:
+        downloads[download_id]['status'] = 'failed'
+        downloads[download_id]['error'] = last_error
+
+    _emit('failed', {'id': download_id, 'error': last_error}, room=download_id)
 
 
 # =========================
