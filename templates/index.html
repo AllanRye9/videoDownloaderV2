@@ -49,53 +49,53 @@
         }
         
         .container {
-            max-width: 800px;
+            max-width: 720px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 10px 14px;
         }
         
         .header {
             text-align: center;
-            padding: 20px 0;
+            padding: 10px 0 8px;
         }
         
         .header h1 {
-            font-size: 28px;
+            font-size: 20px;
             font-weight: 700;
-            margin-bottom: 8px;
+            margin-bottom: 2px;
         }
         
         .header p {
             color: var(--text-secondary);
-            font-size: 14px;
+            font-size: 12px;
         }
         
         .card {
             background: var(--card);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
         }
         
         .input-group {
-            margin-bottom: 16px;
+            margin-bottom: 10px;
         }
         
         .input-group label {
             display: block;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
         }
         
         input[type="text"],
         select {
             width: 100%;
-            padding: 14px 16px;
-            font-size: 16px;
-            border: 2px solid var(--border);
-            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 15px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
             background: var(--bg);
             color: var(--text);
             outline: none;
@@ -109,11 +109,11 @@
         
         .btn {
             width: 100%;
-            padding: 16px;
-            font-size: 16px;
+            padding: 11px;
+            font-size: 14px;
             font-weight: 600;
             border: none;
-            border-radius: 12px;
+            border-radius: 10px;
             cursor: pointer;
             transition: all 0.2s;
             -webkit-tap-highlight-color: transparent;
@@ -148,82 +148,115 @@
         }
         
         .btn-small {
-            padding: 8px 16px;
-            font-size: 14px;
+            padding: 6px 12px;
+            font-size: 13px;
             width: auto;
         }
         
+        /* Compact animated video preview */
         .video-info {
             display: none;
-            padding: 16px;
-            border-radius: 12px;
+            padding: 10px;
+            border-radius: 10px;
             background: var(--bg);
-            margin-bottom: 16px;
+            margin-bottom: 10px;
+            opacity: 0;
+            transform: translateY(-8px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
         }
         
         .video-info.show {
             display: block;
         }
-        
-        .video-info img {
-            width: 100%;
-            border-radius: 8px;
-            margin-bottom: 12px;
+
+        .video-info.visible {
+            opacity: 1;
+            transform: translateY(0);
         }
         
-        .video-info h3 {
-            font-size: 18px;
+        .video-preview-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             margin-bottom: 8px;
+        }
+
+        .video-info img {
+            width: 100px;
+            height: 62px;
+            object-fit: cover;
+            border-radius: 6px;
+            flex-shrink: 0;
+        }
+        
+        .video-meta {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .video-info h3 {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .video-info p {
             color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 4px;
+            font-size: 12px;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .downloads-list {
-            margin-top: 24px;
+            margin-top: 12px;
         }
         
         .downloads-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
+            margin-bottom: 8px;
         }
         
         .downloads-header h2 {
-            font-size: 22px;
+            font-size: 16px;
             font-weight: 700;
         }
         
         .download-item {
             background: var(--card);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
         }
         
         .download-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 8px;
+            align-items: center;
+            margin-bottom: 5px;
         }
         
         .download-title {
             font-weight: 600;
-            font-size: 16px;
+            font-size: 13px;
             flex: 1;
-            margin-right: 12px;
+            margin-right: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .download-status {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
             font-weight: 600;
             white-space: nowrap;
         }
@@ -249,35 +282,35 @@
         }
         
         .download-progress {
-            margin: 12px 0;
+            margin: 6px 0;
         }
         
         .progress-bar {
-            height: 6px;
+            height: 4px;
             background: var(--border);
-            border-radius: 3px;
+            border-radius: 2px;
             overflow: hidden;
         }
         
         .progress-fill {
             height: 100%;
             background: var(--primary);
-            border-radius: 3px;
+            border-radius: 2px;
             transition: width 0.3s;
         }
         
         .progress-text {
-            font-size: 13px;
+            font-size: 11px;
             color: var(--text-secondary);
-            margin-top: 6px;
+            margin-top: 3px;
             display: flex;
             justify-content: space-between;
         }
         
         .download-actions {
             display: flex;
-            gap: 8px;
-            margin-top: 12px;
+            gap: 6px;
+            margin-top: 8px;
         }
         
         .download-actions .btn {
@@ -286,15 +319,15 @@
         
         .empty-state {
             text-align: center;
-            padding: 40px 20px;
+            padding: 24px 20px;
             color: var(--text-secondary);
         }
         
         .empty-state svg {
-            width: 64px;
-            height: 64px;
-            margin-bottom: 16px;
-            opacity: 0.5;
+            width: 40px;
+            height: 40px;
+            margin-bottom: 8px;
+            opacity: 0.4;
         }
         
         .loading {
@@ -321,14 +354,14 @@
         
         .format-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 8px;
-            margin-top: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 6px;
+            margin-top: 6px;
         }
         
         .format-option {
-            padding: 12px;
-            border: 2px solid var(--border);
+            padding: 8px;
+            border: 1.5px solid var(--border);
             border-radius: 8px;
             text-align: center;
             cursor: pointer;
@@ -345,13 +378,13 @@
         
         .format-resolution {
             font-weight: 600;
-            font-size: 16px;
+            font-size: 13px;
         }
         
         .format-size {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-secondary);
-            margin-top: 4px;
+            margin-top: 2px;
         }
         
         .format-option.selected .format-size {
@@ -360,11 +393,11 @@
         
         @media (max-width: 640px) {
             .container {
-                padding: 12px;
+                padding: 8px 10px;
             }
             
             .header h1 {
-                font-size: 24px;
+                font-size: 18px;
             }
             
             .download-actions {
@@ -405,10 +438,14 @@
             </button>
             
             <div id="videoInfo" class="video-info">
-                <img id="videoThumbnail" src="" alt="Video thumbnail">
-                <h3 id="videoTitle"></h3>
-                <p id="videoUploader"></p>
-                <p id="videoDuration"></p>
+                <div class="video-preview-row">
+                    <img id="videoThumbnail" src="" alt="Video thumbnail">
+                    <div class="video-meta">
+                        <h3 id="videoTitle"></h3>
+                        <p id="videoUploader"></p>
+                        <p id="videoDuration"></p>
+                    </div>
+                </div>
                 
                 <div class="format-options" id="formatOptions">
                     <div class="input-group">
@@ -417,7 +454,7 @@
                     </div>
                 </div>
                 
-                <button class="btn btn-success" onclick="startDownload()" style="margin-top: 16px;">
+                <button class="btn btn-success" onclick="startDownload()" style="margin-top: 10px;">
                     <span id="downloadBtnText">Download Video</span>
                     <span id="downloadBtnLoading" style="display: none;">
                         <span class="loading"></span>
@@ -542,10 +579,15 @@
         // Display video info
         function displayVideoInfo(info) {
             document.getElementById('videoThumbnail').src = info.thumbnail;
-            document.getElementById('videoTitle').textContent = info.title;
+            const titleEl = document.getElementById('videoTitle');
+            titleEl.textContent = info.title;
+            titleEl.title = info.title;
             document.getElementById('videoUploader').textContent = '📺 ' + info.uploader;
             document.getElementById('videoDuration').textContent = '⏱️ ' + formatDuration(info.duration);
-            document.getElementById('videoInfo').classList.add('show');
+            const infoEl = document.getElementById('videoInfo');
+            infoEl.classList.add('show');
+            // Trigger animation on next frame
+            requestAnimationFrame(() => requestAnimationFrame(() => infoEl.classList.add('visible')));
         }
         
         // Fetch available formats
@@ -652,7 +694,8 @@
                 
                 // Reset form
                 document.getElementById('videoUrl').value = '';
-                document.getElementById('videoInfo').classList.remove('show');
+                const infoEl = document.getElementById('videoInfo');
+                infoEl.classList.remove('show', 'visible');
                 document.getElementById('formatOptions').classList.remove('show');
                 currentVideoInfo = null;
                 selectedFormat = null;
@@ -751,8 +794,8 @@
                                 <div class="download-status ${statusClass}">${statusText}</div>
                             </div>
                             ${progressHtml}
-                            ${download.file_size ? `<p style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">Size: ${formatSize(download.file_size)}</p>` : ''}
-                            ${download.error ? `<p style="color: var(--danger); font-size: 13px; margin-top: 8px;">Error: ${download.error}</p>` : ''}
+                            ${download.file_size ? `<p style="color: var(--text-secondary); font-size: 11px; margin-top: 4px;">📦 ${formatSize(download.file_size)}</p>` : ''}
+                            ${download.error ? `<p style="color: var(--danger); font-size: 11px; margin-top: 4px;">⚠️ ${download.error}</p>` : ''}
                             ${actionsHtml}
                         </div>
                     `;
