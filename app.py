@@ -117,6 +117,8 @@ def _emit(event: str, data: dict, room: Optional[str] = None):
 
 # =========================
 # Pydantic request models
+import urllib.parse
+
 # =========================
 class URLRequest(BaseModel):
     url: str
@@ -125,6 +127,21 @@ class URLRequest(BaseModel):
 class StartDownloadRequest(BaseModel):
     url: str
     format: Optional[str] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+
+
+def _validate_url(url: str) -> str:
+    """Validate that the URL is a safe http/https URL.
+
+    Raises ValueError for anything that is not a plain http/https URL so
+    that user-controlled strings cannot inject extra shell arguments when
+    passed to yt-dlp via subprocess.
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f"Unsupported URL scheme '{parsed.scheme}'. Only http/https URLs are accepted.")
+    if not parsed.netloc:
+        raise ValueError("Invalid URL: missing host.")
+    return url
 
 
 # =========================
@@ -158,7 +175,10 @@ def get_video_info(url: str) -> Optional[dict]:
 
     Tries multiple YouTube player clients in sequence so that if one is
     blocked by bot-detection the next one is attempted automatically.
+
+    Raises ValueError for invalid URLs before any subprocess is launched.
     """
+    _validate_url(url)  # raises ValueError on bad input
     last_error = ""
     for client in _YT_PLAYER_CLIENTS:
         try:
@@ -205,7 +225,6 @@ def _try_download(download_id: str, url: str, output_path: str,
         + _build_yt_dlp_base_args(player_client)
         + ['--retries', '10',
            '--fragment-retries', '10',
-           '--abort-on-unavailable-fragments',
            '--no-abort-on-unavailable-fragments',
            '--concurrent-fragments', '4',
            '-f', format_spec,
@@ -444,7 +463,10 @@ async def stream_file(download_id: str, request: Request):
 )
 async def get_info(body: URLRequest):
     """Fetch title, thumbnail, duration and format count for a video URL."""
-    info = get_video_info(body.url)
+    try:
+        info = get_video_info(body.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if not info:
         raise HTTPException(status_code=400, detail="Could not fetch video information")
 
@@ -466,7 +488,10 @@ async def get_info(body: URLRequest):
 )
 async def get_formats(body: URLRequest):
     """Return all video and audio-only formats available for a URL."""
-    info = get_video_info(body.url)
+    try:
+        info = get_video_info(body.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if not info:
         raise HTTPException(status_code=400, detail="Could not fetch video information")
 
@@ -519,6 +544,11 @@ async def get_formats(body: URLRequest):
 )
 async def start_download(body: StartDownloadRequest, background_tasks: BackgroundTasks):
     """Queue a video download and return a download_id to track progress via Socket.IO."""
+    try:
+        _validate_url(body.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
     download_id = str(uuid.uuid4())
 
     info = get_video_info(body.url)
