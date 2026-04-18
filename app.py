@@ -83,18 +83,25 @@ fastapi_app = FastAPI(
     lifespan=lifespan,
 )
 
+_CORS_ORIGINS = [
+    o.strip()
+    for o in os.environ.get('CORS_ORIGINS', '*').split(',')
+    if o.strip()
+] or ['*']
+
 fastapi_app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_CORS_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Content-Length"],
 )
 
 templates = Jinja2Templates(directory="templates")
 
-# Mount Socket.IO alongside FastAPI
-app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)
+# Mount Socket.IO alongside FastAPI (explicit path so all other routes reach FastAPI)
+app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app, socketio_path='/socket.io')
 
 
 # =========================
@@ -127,8 +134,16 @@ def get_video_info(url: str) -> Optional[dict]:
     """Get comprehensive video information via yt-dlp."""
     try:
         result = subprocess.run(
-            ['yt-dlp', '--dump-json', '--no-playlist', url],
-            capture_output=True, text=True, check=True, timeout=30,
+            [
+                'yt-dlp',
+                '--dump-json',
+                '--no-playlist',
+                '--extractor-args', 'youtube:player_client=ios,web_embedded',
+                '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+                '--add-header', 'Accept-Language:en-US,en;q=0.9',
+                url,
+            ],
+            capture_output=True, text=True, check=True, timeout=60,
         )
         return json.loads(result.stdout)
     except Exception as e:
@@ -155,8 +170,12 @@ def download_worker(download_id: str, url: str, output_path: str,
         '--newline',
         '--progress',
         '--merge-output-format', 'mp4',
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        '--referer', 'https://www.youtube.com/',
+        '--extractor-args', 'youtube:player_client=ios,web_embedded',
+        '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        '--add-header', 'Accept-Language:en-US,en;q=0.9',
+        '--retries', '5',
+        '--fragment-retries', '5',
+        '--http-chunk-size', '10485760',
         '-f', format_spec,
         '-o', output_path,
         url,
@@ -551,6 +570,16 @@ async def get_config():
         'auto_delete_seconds': AUTO_DELETE_SECONDS,
         'max_file_size_gb': MAX_FILE_SIZE_BYTES / (1024 * 1024 * 1024),
     }
+
+
+@fastapi_app.get(
+    "/api/ping",
+    summary="Connectivity ping",
+    tags=["System"],
+)
+async def ping():
+    """Simple ping endpoint for connectivity checks."""
+    return {'pong': True}
 
 
 @fastapi_app.get(
