@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 import json
+import urllib.parse
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
@@ -114,8 +115,6 @@ def _emit(event: str, data: dict, room: Optional[str] = None):
     coro = sio.emit(event, data, room=room) if room else sio.emit(event, data)
     asyncio.run_coroutine_threadsafe(coro, _main_loop)
 
-
-import urllib.parse
 
 # =========================
 # Pydantic request models

@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 import json
+import urllib.parse
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
@@ -117,8 +118,6 @@ def _emit(event: str, data: dict, room: Optional[str] = None):
 
 # =========================
 # Pydantic request models
-import urllib.parse
-
 # =========================
 class URLRequest(BaseModel):
     url: str

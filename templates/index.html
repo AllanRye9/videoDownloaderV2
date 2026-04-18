@@ -834,7 +834,7 @@
                             <div class="progress-fill ${active?'active':''}" style="width:${pct}%"></div>
                         </div>
                         <div class="progress-meta">
-                            <span class="pct">${pct.toFixed?pct.toFixed(1):pct}%</span>
+                            <span class="pct">${Number(pct).toFixed(1)}%</span>
                             <span class="progress-speed">${dl.speed||''} ${dl.eta?'• ETA '+dl.eta:''}</span>
                         </div>
                     </div>`;
@@ -888,10 +888,11 @@
 
         /* ── Sanitizers ── */
         function esc(s) {
-            return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                                .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         }
         function escAttr(s) {
-            return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+            return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         }
 
         /* ── Init ── */
@@ -909,7 +910,7 @@
         // Ripple on dynamically created buttons (delegation)
         document.addEventListener('click', e => {
             const btn = e.target.closest('.btn');
-            if (!btn || btn.querySelector('.ripple')) return;
+            if (!btn) return;
             const r = document.createElement('span');
             r.className = 'ripple';
             const rect = btn.getBoundingClientRect();
